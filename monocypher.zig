@@ -7,20 +7,20 @@ const expectEqualStrings = testing.expectEqualStrings;
 
 const assert = std.debug.assert;
 
-const mcraw = @import("monocypher_raw.zig");
+const raw = @import("monocypher_raw.zig");
 
 pub const DecryptError = error{MessageCorrupted};
 
-pub fn crypto_verify16(a: *const [16]u8, b: *const [16]u8) bool {
-    return 0 == mcraw.crypto_verify16(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
+pub fn verify16(a: *const [16]u8, b: *const [16]u8) bool {
+    return 0 == raw.crypto_verify16(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
 }
 
-pub fn crypto_verify32(a: *const [32]u8, b: *const [32]u8) bool {
-    return 0 == mcraw.crypto_verify32(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
+pub fn verify32(a: *const [32]u8, b: *const [32]u8) bool {
+    return 0 == raw.crypto_verify32(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
 }
 
-pub fn crypto_verify64(a: *const [64]u8, b: *const [64]u8) bool {
-    return 0 == mcraw.crypto_verify64(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
+pub fn verify64(a: *const [64]u8, b: *const [64]u8) bool {
+    return 0 == raw.crypto_verify64(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
 }
 
 test "constant time comparison" {
@@ -28,11 +28,11 @@ test "constant time comparison" {
     const b = [16]u8{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
     const c = [16]u8{ 1, 72, 3, 41, 15, 23, 7, 3, 9, 0, 1, 1, 3, 1, 5, 1 };
 
-    try expectEqual(crypto_verify16(&a, &b), true);
-    try expectEqual(crypto_verify16(&a, &c), false);
+    try expectEqual(verify16(&a, &b), true);
+    try expectEqual(verify16(&a, &c), false);
 }
 
-pub const crypto_wipe = mcraw.crypto_wipe;
+pub const wipe = raw.crypto_wipe;
 
 test "memory wipe" {
     const MyData = struct {
@@ -43,20 +43,20 @@ test "memory wipe" {
         .id = 72,
         .blocks = [4]u16{ 7, 2, 3, 1 },
     };
-    crypto_wipe(&data, @sizeOf(MyData));
+    wipe(&data, @sizeOf(MyData));
     try expectEqual(data.id, 0);
     const zeros = [4]u16{ 0, 0, 0, 0 };
     try expectEqualSlices(u16, &data.blocks, &zeros);
 }
 
-pub fn crypto_ae_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, plain_text: []const u8) void {
+pub fn ae_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, plain_text: []const u8) void {
     assert(cipher_text.len == plain_text.len);
-    mcraw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, plain_text), plain_text.len);
+    raw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, plain_text), plain_text.len);
 }
 
-pub fn crypto_ae_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, cipher_text: []const u8) DecryptError!void {
+pub fn ae_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, cipher_text: []const u8) DecryptError!void {
     assert(cipher_text.len == plain_text.len);
-    if (0 != mcraw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
+    if (0 != raw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
         return DecryptError.MessageCorrupted;
     }
 }
@@ -72,21 +72,21 @@ test "authenticated encryption" {
 
     try std.os.getrandom(&key);
     try std.os.getrandom(&nonce);
-    crypto_ae_lock(&cipher_text, &mac, &key, &nonce, original_text);
+    ae_lock(&cipher_text, &mac, &key, &nonce, original_text);
 
-    try crypto_ae_unlock(&plain_text, &mac, &key, &nonce, &cipher_text);
+    try ae_unlock(&plain_text, &mac, &key, &nonce, &cipher_text);
 
     try expectEqualStrings(original_text, &plain_text);
 }
 
-pub fn crypto_aead_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, plain_text: []const u8) void {
+pub fn aead_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, plain_text: []const u8) void {
     assert(cipher_text.len == plain_text.len);
-    mcraw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, plain_text), plain_text.len);
+    raw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, plain_text), plain_text.len);
 }
 
-pub fn crypto_aead_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, cipher_text: []const u8) DecryptError!void {
+pub fn aead_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, cipher_text: []const u8) DecryptError!void {
     assert(cipher_text.len == plain_text.len);
-    if (0 != mcraw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
+    if (0 != raw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
         return DecryptError.MessageCorrupted;
     }
 }
@@ -103,15 +103,163 @@ test "authenticated encryption with additional data" {
 
     try std.os.getrandom(&key);
     try std.os.getrandom(&nonce);
-    crypto_aead_lock(&cipher_text, &mac, &key, &nonce, &ad, original_text);
+    aead_lock(&cipher_text, &mac, &key, &nonce, &ad, original_text);
 
-    try crypto_aead_unlock(&plain_text, &mac, &key, &nonce, &ad, &cipher_text);
+    try aead_unlock(&plain_text, &mac, &key, &nonce, &ad, &cipher_text);
 
     try expectEqualStrings(original_text, &plain_text);
 }
 
-pub fn crypto_blake2b(hash: []u8, message: []const u8) void {
-    mcraw.crypto_blake2b(@ptrCast([*c]u8, hash), hash.len, @ptrCast([*c]const u8, message), message.len);
+pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptime_int) type {
+    return struct {
+        const Self = @This();
+
+        pub const block_size = msg_size + @sizeOf(usize);
+        pub const len_index = msg_size;
+        context: raw.crypto_aead_ctx,
+        block_index: usize,
+        block_len: usize,
+        block: [block_size]u8,
+        child_stream: ReaderType,
+
+        const CryptoError = error{ InsufficientMacBytes, MessageCorrupted };
+        pub const Error = ReaderType.Error || CryptoError;
+        pub const Reader = std.io.Reader(*Self, Error, read);
+
+        pub fn read(self: *Self, bytes: []u8) Error!usize {
+            var index: usize = 0;
+
+            // read any remaining data from last decrypted block
+            if (self.block_index < self.block_len) {
+                index = std.math.min(bytes.len, self.block_len - self.block_index);
+                std.mem.copy(u8, bytes[0..index], self.block[self.block_index..self.block_len]);
+                self.block_index += index;
+            }
+            if (index == bytes.len) {
+                return index;
+            }
+
+            // read next mac
+            var mac: [16]u8 = undefined;
+            const mac_bytes = try self.child_stream.readAll(&mac);
+            if (mac_bytes == 0) {
+                return index;
+            } else if (mac_bytes < 16) {
+                return Error.InsufficientMacBytes;
+            }
+
+            // read next block
+            self.block_index = 0;
+            const amt = try self.child_stream.readAll(self.block[0..]);
+            if (amt != block_size) {
+                return Error.MessageCorrupted;
+            }
+
+            // decrypt block
+            var bptr = @ptrCast([*c]u8, self.block[0..]);
+            if (0 != raw.crypto_aead_read(&self.context, bptr, &mac, @intToPtr([*c]const u8, 0), 0, bptr, block_size)) {
+                return Error.MessageCorrupted;
+            }
+            self.block_len = std.mem.readIntLittle(usize, self.block[len_index..]);
+
+            const next_index = std.math.min(index + self.block_len, bytes.len);
+            self.block_index = next_index - index;
+            std.mem.copy(u8, bytes[index..next_index], self.block[0..self.block_index]);
+
+            return next_index;
+        }
+
+        pub fn reader(self: *Self) Reader {
+            return .{ .context = self };
+        }
+    };
+}
+
+pub fn authenticatedReader(child_stream: anytype, comptime block_size: comptime_int, key: *const [32]u8, nonce: *const [24]u8) AuthenticatedReader(@TypeOf(child_stream), block_size) {
+    var areader = AuthenticatedReader(@TypeOf(child_stream), block_size){
+        .block = undefined,
+        .context = undefined,
+        .child_stream = child_stream,
+        .block_index = 0,
+        .block_len = 0,
+    };
+    raw.crypto_aead_init_x(&areader.context, @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce));
+    return areader;
+}
+
+pub fn AuthenticatedWriter(comptime WriterType: type, comptime msg_size: comptime_int) type {
+    return struct {
+        const Self = @This();
+
+        pub const block_size = msg_size + @sizeOf(usize);
+        pub const len_index = msg_size;
+        context: raw.crypto_aead_ctx,
+        child_stream: WriterType,
+
+        const CryptoError = error{MessageCorrupted};
+        pub const Error = WriterType.Error || CryptoError;
+        pub const Writer = std.io.Writer(*Self, Error, write);
+
+        pub fn write(self: *Self, bytes: []const u8) Error!usize {
+            var mac: [16]u8 = undefined;
+            var block: [block_size]u8 = undefined;
+
+            // copy up to block_size bytes for encryption
+            const index: usize = std.math.min(msg_size, bytes.len);
+            std.mem.copy(u8, block[0..index], bytes[0..index]);
+            std.mem.writeIntLittle(usize, block[len_index..], index);
+
+            // encrypt block
+            var bptr = @ptrCast([*c]u8, &block);
+            raw.crypto_aead_write(&self.context, bptr, &mac, @intToPtr([*c]const u8, 0), 0, bptr, block_size);
+
+            // write the mac, cipher text length, and cipher text
+            try self.child_stream.writeAll(&mac);
+            try self.child_stream.writeAll(block[0..block_size]);
+
+            return index;
+        }
+
+        pub fn writer(self: *Self) Writer {
+            return .{ .context = self };
+        }
+    };
+}
+
+pub fn authenticatedWriter(child_stream: anytype, comptime block_size: comptime_int, key: *const [32]u8, nonce: *const [24]u8) AuthenticatedWriter(@TypeOf(child_stream), block_size) {
+    var awriter = AuthenticatedWriter(@TypeOf(child_stream), block_size){
+        .context = undefined,
+        .child_stream = child_stream,
+    };
+    raw.crypto_aead_init_x(&awriter.context, @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce));
+    return awriter;
+}
+
+test "authenticated encryptiion streams" {
+    var key: [32]u8 = undefined;
+    var nonce: [24]u8 = undefined;
+    try std.os.getrandom(&key);
+    try std.os.getrandom(&nonce);
+
+    var buffer: [512]u8 = undefined;
+    var out = std.io.fixedBufferStream(&buffer);
+    var in = std.io.fixedBufferStream(&buffer);
+    var auth_out_stream = authenticatedWriter(out.writer(), 16, &key, &nonce);
+    var auth_in_stream = authenticatedReader(in.reader(), 16, &key, &nonce);
+
+    const original_string = "This is a very long message that couldn't possibly fit in memory and be encrypted all at once.";
+    const original_text = @as(*const [original_string.len]u8, original_string);
+
+    try auth_out_stream.writer().writeAll(original_text);
+
+    var plaintext: [original_string.len]u8 = undefined;
+    const amt_read = try auth_in_stream.reader().readAll(&plaintext);
+    try expectEqual(amt_read, original_text.len);
+    try expectEqualStrings(&plaintext, original_text);
+}
+
+pub fn blake2b(hash: []u8, message: []const u8) void {
+    raw.crypto_blake2b(@ptrCast([*c]u8, hash), hash.len, @ptrCast([*c]const u8, message), message.len);
 }
 
 test "blake2b hash" {
@@ -120,13 +268,13 @@ test "blake2b hash" {
     var hash1: [64]u8 = undefined;
     var hash2: [64]u8 = undefined;
 
-    crypto_blake2b(&hash1, original_text);
-    crypto_blake2b(&hash2, original_text);
+    blake2b(&hash1, original_text);
+    blake2b(&hash2, original_text);
     try expectEqualSlices(u8, &hash1, &hash2);
 }
 
-pub fn crypto_blake2b_keyed(hash: []u8, key: []const u8, message: []const u8) void {
-    mcraw.crypto_blake2b_keyed(@ptrCast([*c]u8, hash), hash.len, @ptrCast([*c]const u8, key), key.len, @ptrCast([*c]const u8, message), message.len);
+pub fn blake2b_keyed(hash: []u8, key: []const u8, message: []const u8) void {
+    raw.crypto_blake2b_keyed(@ptrCast([*c]u8, hash), hash.len, @ptrCast([*c]const u8, key), key.len, @ptrCast([*c]const u8, message), message.len);
 }
 
 test "blake2b keyed hash" {
@@ -139,17 +287,17 @@ test "blake2b keyed hash" {
     var hash1: [64]u8 = undefined;
     var hash2: [64]u8 = undefined;
 
-    crypto_blake2b_keyed(&hash1, &key, original_text);
-    crypto_blake2b_keyed(&hash2, &key, original_text);
+    blake2b_keyed(&hash1, &key, original_text);
+    blake2b_keyed(&hash2, &key, original_text);
     try expectEqualSlices(u8, &hash1, &hash2);
 }
 
-pub fn crypto_x25519_public_key(public_key: *[32]u8, secret_key: *const [32]u8) void {
-    mcraw.crypto_x25519_public_key(@ptrCast([*c]u8, public_key), @ptrCast([*c]const u8, secret_key));
+pub fn x25519_public_key(public_key: *[32]u8, secret_key: *const [32]u8) void {
+    raw.crypto_x25519_public_key(@ptrCast([*c]u8, public_key), @ptrCast([*c]const u8, secret_key));
 }
 
-pub fn crypto_x25519(shared_secret: *[32]u8, your_secret_key: *const [32]u8, their_public_key: *const [32]u8) void {
-    mcraw.crypto_x25519(@ptrCast([*c]u8, shared_secret), @ptrCast([*c]const u8, your_secret_key), @ptrCast([*c]const u8, their_public_key));
+pub fn x25519(shared_secret: *[32]u8, your_secret_key: *const [32]u8, their_public_key: *const [32]u8) void {
+    raw.crypto_x25519(@ptrCast([*c]u8, shared_secret), @ptrCast([*c]const u8, your_secret_key), @ptrCast([*c]const u8, their_public_key));
 }
 
 test "x25519 key exchange" {
@@ -161,26 +309,26 @@ test "x25519 key exchange" {
     var shared_key2: [32]u8 = undefined;
 
     try std.os.getrandom(&secret_key1);
-    crypto_x25519_public_key(&public_key1, &secret_key1);
+    x25519_public_key(&public_key1, &secret_key1);
 
     try std.os.getrandom(&secret_key2);
-    crypto_x25519_public_key(&public_key2, &secret_key2);
+    x25519_public_key(&public_key2, &secret_key2);
 
-    crypto_x25519(&shared_key1, &secret_key1, &public_key2);
-    crypto_x25519(&shared_key2, &secret_key2, &public_key1);
+    x25519(&shared_key1, &secret_key1, &public_key2);
+    x25519(&shared_key2, &secret_key2, &public_key1);
     try expectEqualSlices(u8, &shared_key1, &shared_key2);
 }
 
-pub fn crypto_eddsa_key_pair(secret_key: *[64]u8, public_key: *[32]u8, seed: *[32]u8) void {
-    mcraw.crypto_eddsa_key_pair(@ptrCast([*c]u8, secret_key), @ptrCast([*c]u8, public_key), @ptrCast([*c]u8, seed));
+pub fn eddsa_key_pair(secret_key: *[64]u8, public_key: *[32]u8, seed: *[32]u8) void {
+    raw.crypto_eddsa_key_pair(@ptrCast([*c]u8, secret_key), @ptrCast([*c]u8, public_key), @ptrCast([*c]u8, seed));
 }
 
-pub fn crypto_eddsa_sign(signature: *[64]u8, secret_key: *const [64]u8, message: []const u8) void {
-    mcraw.crypto_eddsa_sign(@ptrCast([*c]u8, signature), @ptrCast([*c]const u8, secret_key), @ptrCast([*c]const u8, message), message.len);
+pub fn eddsa_sign(signature: *[64]u8, secret_key: *const [64]u8, message: []const u8) void {
+    raw.crypto_eddsa_sign(@ptrCast([*c]u8, signature), @ptrCast([*c]const u8, secret_key), @ptrCast([*c]const u8, message), message.len);
 }
 
-pub fn crypto_eddsa_check(signature: *const [64]u8, public_key: *const [32]u8, message: []const u8) bool {
-    return 0 == mcraw.crypto_eddsa_check(@ptrCast([*c]const u8, signature), @ptrCast([*c]const u8, public_key), @ptrCast([*c]const u8, message), message.len);
+pub fn eddsa_check(signature: *const [64]u8, public_key: *const [32]u8, message: []const u8) bool {
+    return 0 == raw.crypto_eddsa_check(@ptrCast([*c]const u8, signature), @ptrCast([*c]const u8, public_key), @ptrCast([*c]const u8, message), message.len);
 }
 
 test "eddsa signatures" {
@@ -194,9 +342,9 @@ test "eddsa signatures" {
     {
         var seed: [32]u8 = undefined;
         try std.os.getrandom(&seed);
-        crypto_eddsa_key_pair(&secret_key, &public_key, &seed);
+        eddsa_key_pair(&secret_key, &public_key, &seed);
     }
 
-    crypto_eddsa_sign(&signature, &secret_key, original_text);
-    try expectEqual(true, crypto_eddsa_check(&signature, &public_key, original_text));
+    eddsa_sign(&signature, &secret_key, original_text);
+    try expectEqual(true, eddsa_check(&signature, &public_key, original_text));
 }
