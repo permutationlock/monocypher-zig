@@ -1,3 +1,23 @@
+// Copyright (c) 2023 Daniel Aven Bross
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 const std = @import("std");
 
 const testing = std.testing;
@@ -51,12 +71,12 @@ test "memory wipe" {
 }
 
 pub fn ae_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, plain_text: []const u8) void {
-    assert(cipher_text.len == plain_text.len);
+    assert(cipher_text.len >= plain_text.len);
     raw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, plain_text), plain_text.len);
 }
 
 pub fn ae_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, cipher_text: []const u8) DecryptError!void {
-    assert(cipher_text.len == plain_text.len);
+    assert(cipher_text.len <= plain_text.len);
     if (0 != raw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
         return DecryptError.MessageCorrupted;
     }
@@ -81,12 +101,12 @@ test "authenticated encryption" {
 }
 
 pub fn aead_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, plain_text: []const u8) void {
-    assert(cipher_text.len == plain_text.len);
+    assert(cipher_text.len >= plain_text.len);
     raw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, plain_text), plain_text.len);
 }
 
 pub fn aead_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, cipher_text: []const u8) DecryptError!void {
-    assert(cipher_text.len == plain_text.len);
+    assert(cipher_text.len <= plain_text.len);
     if (0 != raw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
         return DecryptError.MessageCorrupted;
     }
