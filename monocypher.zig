@@ -45,12 +45,38 @@ pub fn verify64(a: *const [64]u8, b: *const [64]u8) bool {
 }
 
 test "constant time comparison" {
-    const a = [16]u8{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
-    const b = [16]u8{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
-    const c = [16]u8{ 1, 72, 3, 41, 15, 23, 7, 3, 9, 0, 1, 1, 3, 1, 5, 1 };
+    const a16 = [16]u8{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+    const b16 = [16]u8{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+    const c16 = [16]u8{ 1, 72, 3, 41, 15, 23, 7, 3, 9, 0, 1, 1, 3, 1, 5, 1 };
 
-    try expectEqual(verify16(&a, &b), true);
-    try expectEqual(verify16(&a, &c), false);
+    try expectEqual(verify16(&a16, &b16), true);
+    try expectEqual(verify16(&a16, &c16), false);
+
+    var a32: [32]u8 = undefined;
+    var b32: [32]u8 = undefined;
+    var c32: [32]u8 = undefined;
+
+    for (a32[0..]) |_, i| {
+        a32[i] = @truncate(u8, i);
+        b32[i] = @truncate(u8, i);
+        c32[i] = 5;
+    }
+
+    try expectEqual(verify32(&a32, &b32), true);
+    try expectEqual(verify32(&a32, &c32), false);
+
+    var a64: [64]u8 = undefined;
+    var b64: [64]u8 = undefined;
+    var c64: [64]u8 = undefined;
+
+    for (a64[0..]) |_, i| {
+        a64[i] = @truncate(u8, i);
+        b64[i] = @truncate(u8, i);
+        c64[i] = 5;
+    }
+
+    try expectEqual(verify64(&a64, &b64), true);
+    try expectEqual(verify64(&a64, &c64), false);
 }
 
 pub const wipe = raw.crypto_wipe;
@@ -131,8 +157,6 @@ test "authenticated encryption with additional data" {
     try expectEqualStrings(original_text, &plain_text);
 }
 
-pub const CryptoError = error{MessageCorrupted};
-
 pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptime_int) type {
     return struct {
         const Self = @This();
@@ -145,7 +169,7 @@ pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptim
         block: [block_size]u8,
         child_stream: ReaderType,
 
-        pub const Error = ReaderType.Error || CryptoError;
+        pub const Error = ReaderType.Error || DecryptError;
         pub const Reader = std.io.Reader(*Self, Error, read);
 
         pub fn read(self: *Self, bytes: []u8) Error!usize {
@@ -218,7 +242,7 @@ pub fn AuthenticatedWriter(comptime WriterType: type, comptime msg_size: comptim
         context: raw.crypto_aead_ctx,
         child_stream: WriterType,
 
-        pub const Error = WriterType.Error || CryptoError;
+        pub const Error = WriterType.Error;
         pub const Writer = std.io.Writer(*Self, Error, write);
 
         pub fn write(self: *Self, bytes: []const u8) Error!usize {
