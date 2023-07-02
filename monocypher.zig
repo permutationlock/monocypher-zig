@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const testing = std.testing;
+const expect = std.testing.expect;
 const expectEqual = testing.expectEqual;
 const expectEqualSlices = testing.expectEqualSlices;
 const expectEqualStrings = testing.expectEqualStrings;
@@ -110,6 +111,8 @@ test "authenticated encryption with additional data" {
     try expectEqualStrings(original_text, &plain_text);
 }
 
+pub const CryptoError = error{MessageCorrupted};
+
 pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptime_int) type {
     return struct {
         const Self = @This();
@@ -122,7 +125,6 @@ pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptim
         block: [block_size]u8,
         child_stream: ReaderType,
 
-        const CryptoError = error{ InsufficientMacBytes, MessageCorrupted };
         pub const Error = ReaderType.Error || CryptoError;
         pub const Reader = std.io.Reader(*Self, Error, read);
 
@@ -145,7 +147,7 @@ pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptim
             if (mac_bytes == 0) {
                 return index;
             } else if (mac_bytes < 16) {
-                return Error.InsufficientMacBytes;
+                return Error.MessageCorrupted;
             }
 
             // read next block
@@ -196,7 +198,6 @@ pub fn AuthenticatedWriter(comptime WriterType: type, comptime msg_size: comptim
         context: raw.crypto_aead_ctx,
         child_stream: WriterType,
 
-        const CryptoError = error{MessageCorrupted};
         pub const Error = WriterType.Error || CryptoError;
         pub const Writer = std.io.Writer(*Self, Error, write);
 
@@ -274,6 +275,7 @@ test "blake2b hash" {
 }
 
 pub fn blake2b_keyed(hash: []u8, key: []const u8, message: []const u8) void {
+    assert(key.len <= 64);
     raw.crypto_blake2b_keyed(@ptrCast([*c]u8, hash), hash.len, @ptrCast([*c]const u8, key), key.len, @ptrCast([*c]const u8, message), message.len);
 }
 
@@ -290,6 +292,188 @@ test "blake2b keyed hash" {
     blake2b_keyed(&hash1, &key, original_text);
     blake2b_keyed(&hash2, &key, original_text);
     try expectEqualSlices(u8, &hash1, &hash2);
+}
+
+pub const Blake2bHashStream = struct {
+    const Self = @This();
+
+    hash_size: usize,
+    context: raw.crypto_blake2b_ctx,
+
+    pub fn init(hash_size: usize) Self {
+        var self = Self{
+            .hash_size = hash_size,
+            .context = undefined,
+        };
+        const ctx_ptr = @ptrCast([*c]raw.crypto_blake2b_ctx, &self.context);
+        raw.crypto_blake2b_init(ctx_ptr, hash_size);
+        return self;
+    }
+
+    pub fn keyed_init(key: []u8, hash_size: usize) Self {
+        assert(key.len <= 64);
+        var self = Self{
+            .hash_size = hash_size,
+            .context = undefined,
+        };
+        const ctx_ptr = @ptrCast([*c]raw.crypto_blake2b_ctx, &self.context);
+        raw.crypto_blake2b_keyed_init(ctx_ptr, hash_size, @ptrCast([*c]const u8, key), key.len);
+        return self;
+    }
+
+    pub fn update(self: *Self, message: []const u8) void {
+        const ctx_ptr = @ptrCast([*c]raw.crypto_blake2b_ctx, &self.context);
+        raw.crypto_blake2b_update(ctx_ptr, @ptrCast([*c]const u8, message), message.len);
+    }
+
+    pub fn final(self: *Self, hash: []u8) void {
+        assert(hash.len >= self.hash_size);
+        const ctx_ptr = @ptrCast([*c]raw.crypto_blake2b_ctx, &self.context);
+        raw.crypto_blake2b_final(ctx_ptr, @ptrCast([*c]u8, hash));
+    }
+};
+
+test "blake2b hash incremental" {
+    var hash: [64]u8 = undefined;
+    var hash_inc: [64]u8 = undefined;
+
+    const original_string = "This is a very long message that couldn't possibly fit in memory and be encrypted all at once.";
+    const original_text = @as(*const [original_string.len]u8, original_string);
+
+    blake2b(&hash, original_text);
+
+    var stream = Blake2bHashStream.init(hash_inc.len);
+    stream.update(original_text);
+    stream.final(&hash_inc);
+
+    try expectEqualSlices(u8, &hash, &hash_inc);
+}
+
+test "blake2b keyed hash incremental" {
+    var key: [32]u8 = undefined;
+    try std.os.getrandom(&key);
+
+    var hash: [64]u8 = undefined;
+    var hash_inc: [64]u8 = undefined;
+
+    const original_string = "This is a very long message that couldn't possibly fit in memory and be encrypted all at once.";
+    const original_text = @as(*const [original_string.len]u8, original_string);
+
+    blake2b_keyed(&hash, &key, original_text);
+
+    var stream = Blake2bHashStream.keyed_init(&key, hash_inc.len);
+    stream.update(original_text);
+    stream.final(&hash_inc);
+
+    try expectEqualSlices(u8, &hash, &hash_inc);
+}
+
+pub const Argon2 = struct {
+    const Self = @This();
+    const Allocator = std.mem.Allocator;
+
+    const Block = struct {
+        data: [1024]u8,
+    };
+
+    const Workspace = struct {
+        blocks: []Block,
+        config: raw.crypto_argon2_config,
+    };
+
+    workspace: ?Workspace,
+    extras: raw.crypto_argon2_extras,
+
+    pub const Argon2Error = error{NoWorkspace};
+
+    pub const Algorithm = enum(u32) {
+        Argon2d = 0,
+        Argon2i = 1,
+        Argon2id = 2,
+    };
+
+    pub fn init() Self {
+        return Self{
+            .workspace = null,
+            .extras = raw.crypto_argon2_no_extras,
+        };
+    }
+
+    pub fn make_workspace(self: *Self, allocator: Allocator, algorithm: Algorithm, blocks: u32, passes: u32) !void {
+        self.workspace = Workspace{
+            .blocks = try allocator.alloc(Block, blocks),
+            .config = raw.crypto_argon2_config{
+                .algorithm = @enumToInt(algorithm),
+                .nb_blocks = blocks,
+                .nb_passes = passes,
+                .nb_lanes = 1,
+            },
+        };
+    }
+
+    pub fn clear_workspace(self: *Self, allocator: Allocator) void {
+        if (self.workspace == null) {
+            return;
+        }
+        allocator.free(self.workspace.?.blocks);
+        self.workspace = null;
+    }
+
+    pub fn set_key(self: *Self, key: []const u8) void {
+        assert(key.len <= 64);
+        self.extras.key = @ptrCast([*c]const u8, key);
+        self.extras.key_size = @truncate(u32, key.len);
+    }
+
+    pub fn set_additional_data(self: *Self, ad: []const u8) void {
+        self.extras.ad = @ptrCast([*c]const u8, ad);
+        self.extras.ad_size = @truncate(u32, ad.len);
+    }
+
+    pub fn clear_extras(self: *Self) void {
+        self.extras = raw.crypto_argon2_no_extras;
+    }
+
+    pub fn compute(self: *Self, hash: []u8, pass: []const u8, salt: []const u8) Argon2Error!void {
+        if (self.workspace == null) {
+            return Argon2Error.NoWorkspace;
+        }
+        const inputs = raw.crypto_argon2_inputs{
+            .pass = @ptrCast([*c]const u8, pass),
+            .salt = @ptrCast([*c]const u8, salt),
+            .pass_size = @truncate(u32, pass.len),
+            .salt_size = @truncate(u32, salt.len),
+        };
+        raw.crypto_argon2(@ptrCast([*c]u8, hash), @truncate(u32, hash.len), @ptrCast([*c]u8, self.workspace.?.blocks), self.workspace.?.config, inputs, self.extras);
+    }
+};
+
+test "argon2 password hashing" {
+    var salt: [16]u8 = undefined;
+    try std.os.getrandom(&salt);
+
+    var key: [32]u8 = undefined;
+    try std.os.getrandom(&key);
+
+    const ad_string = "some other stuff";
+    const ad_text = @as(*const [ad_string.len]u8, ad_string);
+
+    const password_string = "abc123";
+    const password_text = @as(*const [password_string.len]u8, password_string);
+
+    var argon2 = Argon2.init();
+    try argon2.make_workspace(std.testing.allocator, .Argon2d, 64, 1);
+    argon2.set_key(&key);
+    argon2.set_additional_data(ad_text);
+
+    var hash1: [64]u8 = undefined;
+    var hash2: [64]u8 = undefined;
+    try argon2.compute(&hash1, password_text, &salt);
+    try argon2.compute(&hash2, password_text, &salt);
+
+    try expectEqualSlices(u8, &hash1, &hash2);
+
+    argon2.clear_workspace(std.testing.allocator);
 }
 
 pub fn x25519_public_key(public_key: *[32]u8, secret_key: *const [32]u8) void {
