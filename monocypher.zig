@@ -7,8 +7,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -33,15 +33,24 @@ const raw = @import("monocypher_raw.zig");
 pub const DecryptError = error{MessageCorrupted};
 
 pub fn verify16(a: *const [16]u8, b: *const [16]u8) bool {
-    return 0 == raw.crypto_verify16(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
+    return 0 == raw.crypto_verify16(
+        @ptrCast([*c]const u8, a),
+        @ptrCast([*c]const u8, b)
+    );
 }
 
 pub fn verify32(a: *const [32]u8, b: *const [32]u8) bool {
-    return 0 == raw.crypto_verify32(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
+    return 0 == raw.crypto_verify32(
+        @ptrCast([*c]const u8, a),
+        @ptrCast([*c]const u8, b)
+    );
 }
 
 pub fn verify64(a: *const [64]u8, b: *const [64]u8) bool {
-    return 0 == raw.crypto_verify64(@ptrCast([*c]const u8, a), @ptrCast([*c]const u8, b));
+    return 0 == raw.crypto_verify64(
+        @ptrCast([*c]const u8, a),
+        @ptrCast([*c]const u8, b)
+    );
 }
 
 test "constant time comparison" {
@@ -96,14 +105,44 @@ test "memory wipe" {
     try expectEqualSlices(u16, &data.blocks, &zeros);
 }
 
-pub fn ae_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, plain_text: []const u8) void {
+pub fn ae_lock(
+    cipher_text: []u8,
+    mac: *[16]u8,
+    key: *const [32]u8,
+    nonce: *const [24]u8,
+    plain_text: []const u8
+) void {
     assert(cipher_text.len >= plain_text.len);
-    raw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, plain_text), plain_text.len);
+    raw.crypto_aead_lock(
+        @ptrCast([*c]u8, cipher_text), 
+        @ptrCast([*c]u8, mac),
+        @ptrCast([*c]const u8, key),
+        @ptrCast([*c]const u8, nonce),
+        @intToPtr([*c]const u8, 0),
+        0,
+        @ptrCast([*c]const u8, plain_text),
+        plain_text.len
+    );
 }
 
-pub fn ae_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, cipher_text: []const u8) DecryptError!void {
+pub fn ae_unlock(
+    plain_text: []u8,
+    mac: *const [16]u8,
+    key: *const [32]u8,
+    nonce: *const [24]u8,
+    cipher_text: []const u8
+) DecryptError!void {
     assert(cipher_text.len <= plain_text.len);
-    if (0 != raw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @intToPtr([*c]const u8, 0), 0, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
+    if (0 != raw.crypto_aead_unlock(
+            @ptrCast([*c]u8, plain_text),
+            @ptrCast([*c]const u8, mac),
+            @ptrCast([*c]const u8, key),
+            @ptrCast([*c]const u8, nonce),
+            @intToPtr([*c]const u8, 0), 0,
+            @ptrCast([*c]const u8, cipher_text),
+            cipher_text.len
+        )
+    ) {
         return DecryptError.MessageCorrupted;
     }
 }
@@ -126,14 +165,46 @@ test "authenticated encryption" {
     try expectEqualStrings(original_text, &plain_text);
 }
 
-pub fn aead_lock(cipher_text: []u8, mac: *[16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, plain_text: []const u8) void {
+pub fn aead_lock(
+    cipher_text: []u8,
+    mac: *[16]u8,
+    key: *const [32]u8,
+    nonce: *const [24]u8,
+    ad: []const u8,
+    plain_text: []const u8
+) void {
     assert(cipher_text.len >= plain_text.len);
-    raw.crypto_aead_lock(@ptrCast([*c]u8, cipher_text), @ptrCast([*c]u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, plain_text), plain_text.len);
+    raw.crypto_aead_lock(
+        @ptrCast([*c]u8, cipher_text),
+        @ptrCast([*c]u8, mac),
+        @ptrCast([*c]const u8, key),
+        @ptrCast([*c]const u8, nonce),
+        @ptrCast([*c]const u8, ad),
+        ad.len, @ptrCast([*c]const u8, plain_text),
+        plain_text.len
+    );
 }
 
-pub fn aead_unlock(plain_text: []u8, mac: *const [16]u8, key: *const [32]u8, nonce: *const [24]u8, ad: []const u8, cipher_text: []const u8) DecryptError!void {
+pub fn aead_unlock(
+    plain_text: []u8,
+    mac: *const [16]u8,
+    key: *const [32]u8,
+    nonce: *const [24]u8,
+    ad: []const u8,
+    cipher_text: []const u8
+) DecryptError!void {
     assert(cipher_text.len <= plain_text.len);
-    if (0 != raw.crypto_aead_unlock(@ptrCast([*c]u8, plain_text), @ptrCast([*c]const u8, mac), @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce), @ptrCast([*c]const u8, ad), ad.len, @ptrCast([*c]const u8, cipher_text), cipher_text.len)) {
+    if (0 != raw.crypto_aead_unlock(
+            @ptrCast([*c]u8, plain_text),
+            @ptrCast([*c]const u8, mac),
+            @ptrCast([*c]const u8, key),
+            @ptrCast([*c]const u8, nonce),
+            @ptrCast([*c]const u8, ad),
+            ad.len,
+            @ptrCast([*c]const u8, cipher_text),
+            cipher_text.len
+        )
+    ) {
         return DecryptError.MessageCorrupted;
     }
 }
@@ -157,12 +228,15 @@ test "authenticated encryption with additional data" {
     try expectEqualStrings(original_text, &plain_text);
 }
 
-pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptime_int) type {
+pub fn AuthenticatedReader(
+    comptime ReaderType: type,
+    comptime chunk_size: comptime_int
+) type {
     return struct {
         const Self = @This();
 
-        pub const block_size = msg_size + @sizeOf(usize);
-        pub const len_index = msg_size;
+        pub const block_size = chunk_size + @sizeOf(usize);
+        pub const len_index = chunk_size;
         context: raw.crypto_aead_ctx,
         block_index: usize,
         block_len: usize,
@@ -177,8 +251,15 @@ pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptim
 
             // read any remaining data from last decrypted block
             if (self.block_index < self.block_len) {
-                index = std.math.min(bytes.len, self.block_len - self.block_index);
-                std.mem.copy(u8, bytes[0..index], self.block[self.block_index..self.block_len]);
+                index = std.math.min(
+                    bytes.len,
+                    self.block_len - self.block_index
+                );
+                std.mem.copy(
+                    u8,
+                    bytes[0..index],
+                    self.block[self.block_index..self.block_len]
+                );
                 self.block_index += index;
             }
             if (index == bytes.len) {
@@ -203,14 +284,30 @@ pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptim
 
             // decrypt block
             var bptr = @ptrCast([*c]u8, self.block[0..]);
-            if (0 != raw.crypto_aead_read(&self.context, bptr, &mac, @intToPtr([*c]const u8, 0), 0, bptr, block_size)) {
+            if (0 != raw.crypto_aead_read(
+                    &self.context,
+                    bptr,
+                    &mac,
+                    @intToPtr([*c]const u8, 0),
+                    0,
+                    bptr,
+                    block_size
+                )
+            ) {
                 return Error.MessageCorrupted;
             }
-            self.block_len = std.mem.readIntLittle(usize, self.block[len_index..]);
+            self.block_len = std.mem.readIntLittle(
+                usize,
+                self.block[len_index..]
+            );
 
             const next_index = std.math.min(index + self.block_len, bytes.len);
             self.block_index = next_index - index;
-            std.mem.copy(u8, bytes[index..next_index], self.block[0..self.block_index]);
+            std.mem.copy(
+                u8, 
+                bytes[index..next_index],
+                self.block[0..self.block_index]
+            );
 
             return next_index;
         }
@@ -221,7 +318,12 @@ pub fn AuthenticatedReader(comptime ReaderType: type, comptime msg_size: comptim
     };
 }
 
-pub fn authenticatedReader(child_stream: anytype, comptime block_size: comptime_int, key: *const [32]u8, nonce: *const [24]u8) AuthenticatedReader(@TypeOf(child_stream), block_size) {
+pub fn authenticatedReader(
+    child_stream: anytype,
+    comptime block_size: comptime_int,
+    key: *const [32]u8,
+    nonce: *const [24]u8
+) AuthenticatedReader(@TypeOf(child_stream), block_size) {
     var areader = AuthenticatedReader(@TypeOf(child_stream), block_size){
         .block = undefined,
         .context = undefined,
@@ -229,16 +331,23 @@ pub fn authenticatedReader(child_stream: anytype, comptime block_size: comptime_
         .block_index = 0,
         .block_len = 0,
     };
-    raw.crypto_aead_init_x(&areader.context, @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce));
+    raw.crypto_aead_init_x(
+        &areader.context,
+        @ptrCast([*c]const u8, key),
+        @ptrCast([*c]const u8, nonce)
+    );
     return areader;
 }
 
-pub fn AuthenticatedWriter(comptime WriterType: type, comptime msg_size: comptime_int) type {
+pub fn AuthenticatedWriter(
+    comptime WriterType: type,
+    comptime chunk_size: comptime_int
+) type {
     return struct {
         const Self = @This();
 
-        pub const block_size = msg_size + @sizeOf(usize);
-        pub const len_index = msg_size;
+        pub const block_size = chunk_size + @sizeOf(usize);
+        pub const len_index = chunk_size;
         context: raw.crypto_aead_ctx,
         child_stream: WriterType,
 
@@ -249,16 +358,24 @@ pub fn AuthenticatedWriter(comptime WriterType: type, comptime msg_size: comptim
             var mac: [16]u8 = undefined;
             var block: [block_size]u8 = undefined;
 
-            // copy up to block_size bytes for encryption
-            const index: usize = std.math.min(msg_size, bytes.len);
+            // copy chunk bytes and length for encryption
+            const index: usize = std.math.min(chunk_size, bytes.len);
             std.mem.copy(u8, block[0..index], bytes[0..index]);
             std.mem.writeIntLittle(usize, block[len_index..], index);
 
             // encrypt block
             var bptr = @ptrCast([*c]u8, &block);
-            raw.crypto_aead_write(&self.context, bptr, &mac, @intToPtr([*c]const u8, 0), 0, bptr, block_size);
+            raw.crypto_aead_write(
+                &self.context,
+                bptr, 
+                &mac,
+                @intToPtr([*c]const u8, 0),
+                0,
+                bptr,
+                block_size
+            );
 
-            // write the mac, cipher text length, and cipher text
+            // write the mac and encrypted block
             try self.child_stream.writeAll(&mac);
             try self.child_stream.writeAll(block[0..block_size]);
 
@@ -271,12 +388,21 @@ pub fn AuthenticatedWriter(comptime WriterType: type, comptime msg_size: comptim
     };
 }
 
-pub fn authenticatedWriter(child_stream: anytype, comptime block_size: comptime_int, key: *const [32]u8, nonce: *const [24]u8) AuthenticatedWriter(@TypeOf(child_stream), block_size) {
+pub fn authenticatedWriter(
+    child_stream: anytype,
+    comptime block_size: comptime_int,
+    key: *const [32]u8,
+    nonce: *const [24]u8
+) AuthenticatedWriter(@TypeOf(child_stream), block_size) {
     var awriter = AuthenticatedWriter(@TypeOf(child_stream), block_size){
         .context = undefined,
         .child_stream = child_stream,
     };
-    raw.crypto_aead_init_x(&awriter.context, @ptrCast([*c]const u8, key), @ptrCast([*c]const u8, nonce));
+    raw.crypto_aead_init_x(
+        &awriter.context,
+        @ptrCast([*c]const u8, key),
+        @ptrCast([*c]const u8, nonce)
+    );
     return awriter;
 }
 
@@ -292,7 +418,10 @@ test "authenticated encryptiion streams" {
     var auth_out_stream = authenticatedWriter(out.writer(), 16, &key, &nonce);
     var auth_in_stream = authenticatedReader(in.reader(), 16, &key, &nonce);
 
-    const original_string = "This is a very long message that couldn't possibly fit in memory and be encrypted all at once.";
+    const original_string =
+        \\This is a very long message that couldn't possibly fit in memory and
+        \\be encrypted all at once."
+    ;
     const original_text = @as(*const [original_string.len]u8, original_string);
 
     try auth_out_stream.writer().writeAll(original_text);
@@ -304,7 +433,13 @@ test "authenticated encryptiion streams" {
 }
 
 pub fn blake2b(hash: []u8, message: []const u8) void {
-    raw.crypto_blake2b(@ptrCast([*c]u8, hash), hash.len, @ptrCast([*c]const u8, message), message.len);
+    assert(hash.len <= 64);
+    raw.crypto_blake2b(
+        @ptrCast([*c]u8, hash),
+        hash.len,
+        @ptrCast([*c]const u8, message),
+        message.len
+    );
 }
 
 test "blake2b hash" {
@@ -320,7 +455,14 @@ test "blake2b hash" {
 
 pub fn blake2b_keyed(hash: []u8, key: []const u8, message: []const u8) void {
     assert(key.len <= 64);
-    raw.crypto_blake2b_keyed(@ptrCast([*c]u8, hash), hash.len, @ptrCast([*c]const u8, key), key.len, @ptrCast([*c]const u8, message), message.len);
+    raw.crypto_blake2b_keyed(
+        @ptrCast([*c]u8, hash),
+        hash.len,
+        @ptrCast([*c]const u8, key),
+        key.len,
+        @ptrCast([*c]const u8, message),
+        message.len
+    );
 }
 
 test "blake2b keyed hash" {
@@ -345,6 +487,7 @@ pub const Blake2bHashStream = struct {
     context: raw.crypto_blake2b_ctx,
 
     pub fn init(hash_size: usize) Self {
+        assert(hash_size <= 64);
         var self = Self{
             .hash_size = hash_size,
             .context = undefined,
@@ -361,13 +504,22 @@ pub const Blake2bHashStream = struct {
             .context = undefined,
         };
         const ctx_ptr = @ptrCast([*c]raw.crypto_blake2b_ctx, &self.context);
-        raw.crypto_blake2b_keyed_init(ctx_ptr, hash_size, @ptrCast([*c]const u8, key), key.len);
+        raw.crypto_blake2b_keyed_init(
+            ctx_ptr,
+            hash_size,
+            @ptrCast([*c]const u8, key),
+            key.len
+        );
         return self;
     }
 
     pub fn update(self: *Self, message: []const u8) void {
         const ctx_ptr = @ptrCast([*c]raw.crypto_blake2b_ctx, &self.context);
-        raw.crypto_blake2b_update(ctx_ptr, @ptrCast([*c]const u8, message), message.len);
+        raw.crypto_blake2b_update(
+            ctx_ptr,
+            @ptrCast([*c]const u8, message),
+            message.len
+        );
     }
 
     pub fn final(self: *Self, hash: []u8) void {
@@ -381,7 +533,10 @@ test "blake2b hash incremental" {
     var hash: [64]u8 = undefined;
     var hash_inc: [64]u8 = undefined;
 
-    const original_string = "This is a very long message that couldn't possibly fit in memory and be encrypted all at once.";
+    const original_string = 
+        \\This is a very long message that couldn't possibly fit in memory and
+        \\be hashed all at once."
+    ;
     const original_text = @as(*const [original_string.len]u8, original_string);
 
     blake2b(&hash, original_text);
@@ -400,7 +555,10 @@ test "blake2b keyed hash incremental" {
     var hash: [64]u8 = undefined;
     var hash_inc: [64]u8 = undefined;
 
-    const original_string = "This is a very long message that couldn't possibly fit in memory and be encrypted all at once.";
+    const original_string = 
+        \\This is a very long message that couldn't possibly fit in memory and
+        \\be hashed all at once."
+    ;
     const original_text = @as(*const [original_string.len]u8, original_string);
 
     blake2b_keyed(&hash, &key, original_text);
@@ -443,7 +601,13 @@ pub const Argon2 = struct {
         };
     }
 
-    pub fn make_workspace(self: *Self, allocator: Allocator, algorithm: Algorithm, blocks: u32, passes: u32) !void {
+    pub fn make_workspace(
+        self: *Self,
+        allocator: Allocator,
+        algorithm: Algorithm,
+        blocks: u32,
+        passes: u32
+    ) !void {
         self.workspace = Workspace{
             .blocks = try allocator.alloc(Block, blocks),
             .config = raw.crypto_argon2_config{
@@ -478,7 +642,12 @@ pub const Argon2 = struct {
         self.extras = raw.crypto_argon2_no_extras;
     }
 
-    pub fn compute(self: *Self, hash: []u8, pass: []const u8, salt: []const u8) Argon2Error!void {
+    pub fn compute(
+        self: *Self,
+        hash: []u8,
+        pass: []const u8,
+        salt: []const u8
+    ) Argon2Error!void {
         if (self.workspace == null) {
             return Argon2Error.NoWorkspace;
         }
@@ -488,7 +657,13 @@ pub const Argon2 = struct {
             .pass_size = @truncate(u32, pass.len),
             .salt_size = @truncate(u32, salt.len),
         };
-        raw.crypto_argon2(@ptrCast([*c]u8, hash), @truncate(u32, hash.len), @ptrCast([*c]u8, self.workspace.?.blocks), self.workspace.?.config, inputs, self.extras);
+        raw.crypto_argon2(
+            @ptrCast([*c]u8, hash),
+            @truncate(u32, hash.len),
+            @ptrCast([*c]u8, self.workspace.?.blocks),
+            self.workspace.?.config, inputs,
+            self.extras
+        );
     }
 };
 
@@ -507,6 +682,7 @@ test "argon2 password hashing" {
 
     var argon2 = Argon2.init();
     try argon2.make_workspace(std.testing.allocator, .Argon2d, 64, 1);
+    defer argon2.clear_workspace(std.testing.allocator);
     argon2.set_key(&key);
     argon2.set_additional_data(ad_text);
 
@@ -516,16 +692,25 @@ test "argon2 password hashing" {
     try argon2.compute(&hash2, password_text, &salt);
 
     try expectEqualSlices(u8, &hash1, &hash2);
-
-    argon2.clear_workspace(std.testing.allocator);
 }
 
 pub fn x25519_public_key(public_key: *[32]u8, secret_key: *const [32]u8) void {
-    raw.crypto_x25519_public_key(@ptrCast([*c]u8, public_key), @ptrCast([*c]const u8, secret_key));
+    raw.crypto_x25519_public_key(
+        @ptrCast([*c]u8, public_key),
+        @ptrCast([*c]const u8, secret_key)
+    );
 }
 
-pub fn x25519(shared_secret: *[32]u8, your_secret_key: *const [32]u8, their_public_key: *const [32]u8) void {
-    raw.crypto_x25519(@ptrCast([*c]u8, shared_secret), @ptrCast([*c]const u8, your_secret_key), @ptrCast([*c]const u8, their_public_key));
+pub fn x25519(
+    shared_secret: *[32]u8,
+    your_secret_key: *const [32]u8,
+    their_public_key: *const [32]u8
+) void {
+    raw.crypto_x25519(
+        @ptrCast([*c]u8, shared_secret),
+        @ptrCast([*c]const u8, your_secret_key),
+        @ptrCast([*c]const u8, their_public_key)
+    );
 }
 
 test "x25519 key exchange" {
@@ -547,16 +732,40 @@ test "x25519 key exchange" {
     try expectEqualSlices(u8, &shared_key1, &shared_key2);
 }
 
-pub fn eddsa_key_pair(secret_key: *[64]u8, public_key: *[32]u8, seed: *[32]u8) void {
-    raw.crypto_eddsa_key_pair(@ptrCast([*c]u8, secret_key), @ptrCast([*c]u8, public_key), @ptrCast([*c]u8, seed));
+pub fn eddsa_key_pair(
+    secret_key: *[64]u8, public_key: *[32]u8, seed: *[32]u8
+) void {
+    raw.crypto_eddsa_key_pair(
+        @ptrCast([*c]u8, secret_key),
+        @ptrCast([*c]u8, public_key),
+        @ptrCast([*c]u8, seed)
+    );
 }
 
-pub fn eddsa_sign(signature: *[64]u8, secret_key: *const [64]u8, message: []const u8) void {
-    raw.crypto_eddsa_sign(@ptrCast([*c]u8, signature), @ptrCast([*c]const u8, secret_key), @ptrCast([*c]const u8, message), message.len);
+pub fn eddsa_sign(
+    signature: *[64]u8,
+    secret_key: *const [64]u8,
+    message: []const u8
+) void {
+    raw.crypto_eddsa_sign(
+        @ptrCast([*c]u8, signature),
+        @ptrCast([*c]const u8, secret_key),
+        @ptrCast([*c]const u8, message),
+        message.len
+    );
 }
 
-pub fn eddsa_check(signature: *const [64]u8, public_key: *const [32]u8, message: []const u8) bool {
-    return 0 == raw.crypto_eddsa_check(@ptrCast([*c]const u8, signature), @ptrCast([*c]const u8, public_key), @ptrCast([*c]const u8, message), message.len);
+pub fn eddsa_check(
+    signature: *const [64]u8,
+    public_key: *const [32]u8,
+    message: []const u8
+) bool {
+    return 0 == raw.crypto_eddsa_check(
+        @ptrCast([*c]const u8, signature),
+        @ptrCast([*c]const u8, public_key),
+        @ptrCast([*c]const u8, message),
+        message.len
+    );
 }
 
 test "eddsa signatures" {
@@ -567,11 +776,9 @@ test "eddsa signatures" {
     const original_string = "This was definitely sent by me.";
     const original_text = @as(*const [original_string.len]u8, original_string);
 
-    {
-        var seed: [32]u8 = undefined;
-        try std.os.getrandom(&seed);
-        eddsa_key_pair(&secret_key, &public_key, &seed);
-    }
+    var seed: [32]u8 = undefined;
+    try std.os.getrandom(&seed);
+    eddsa_key_pair(&secret_key, &public_key, &seed);
 
     eddsa_sign(&signature, &secret_key, original_text);
     try expectEqual(true, eddsa_check(&signature, &public_key, original_text));
